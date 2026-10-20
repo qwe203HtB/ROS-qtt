@@ -70,19 +70,23 @@ jobs:
           case "$REF_TYPE:$TAG" in tag:v*) : ;;
             *) TAG="v0.2.0" ;;
           esac
+          NOTES=$(cat <<'EON'
+          Образы ros-qtt-<arch>.tar (docker save) от `pack.sh`.
+
+          Установка в роутер — **одной командой** (роутер сам скачает с этого Releases):
+          см. ros-qtt/README.md в репозитории.
+
+          ---
+
+          ROS-qtt · by qwe203 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)
+          EON
+          )
           gh release create "$TAG" \
             ros-qtt-amd64.tar/ros-qtt-amd64.tar \
             ros-qtt-arm64.tar/ros-qtt-arm64.tar \
             --title "ROS-qtt $TAG — образы контейнеров для RouterOS (amd64 + arm64)" \
-            --notes "Образы ros-qtt-<arch>.tar (docker save) от \`pack.sh\`.
-
-Установка в роутер — **одной командой** (роутер сам скачает с этого Releases):
-см. [ros-qtt/README.md](https://github.com/qwe203HtB/ROS-qtt/blob/main/ros-qtt/README.md).
-
----
-
-ROS-qtt · by qwe203 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)" \
-          || gh release upload "$TAG" \
-            ros-qtt-amd64.tar/ros-qtt-amd64.tar \
-            ros-qtt-arm64.tar/ros-qtt-arm64.tar \
-            --clobber
+            --notes "$NOTES" \
+            || gh release upload "$TAG" \
+              ros-qtt-amd64.tar/ros-qtt-amd64.tar \
+              ros-qtt-arm64.tar/ros-qtt-arm64.tar \
+              --clobber
