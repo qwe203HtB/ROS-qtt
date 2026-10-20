@@ -38,4 +38,5 @@ docker buildx build --platform "$PLAT" --build-arg "TARGETPLATFORM=$PLAT" \
   --output=type=docker --tag "ros-qtt:0.1.0-$SLASH" .
 docker save "ros-qtt:0.1.0-$SLASH" > "$HEREDIR/ros-qtt-$SLASH.tar"
 echo "▸ готово: $HEREDIR/ros-qtt-$SLASH.tar"
-echo "  залейте на роутер (rsync/Winbox), поместите как $ROSQTTDisk/ros-qtt.tar и запустите install-ros-qtt.rsc"
+echo "  залейте на роутер (Winbox → Files) как <диск>/ros-qtt.tar и запустите install-ros-qtt.rsc —"
+echo "  либо вообще ничего не заливайте: install-from-github.rsc качает образы из Releases сам."

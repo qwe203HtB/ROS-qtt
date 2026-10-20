@@ -43,6 +43,12 @@ jobs:
         working-directory: ros-qtt
         run: bash build.sh dist ${{ matrix.arch }}
 
+      - name: Set up QEMU (для apk внутри arm64-образа)
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Pack container image
         working-directory: ros-qtt
         run: bash pack.sh ${{ matrix.arch }} dist
