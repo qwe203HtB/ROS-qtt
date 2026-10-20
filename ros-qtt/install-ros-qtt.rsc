@@ -3,9 +3,11 @@
 # by qwe203 · 2026 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)
 #
 # ЧТО ЭТО. Роутер становится одним абонентом csqtt-туннеля (как телефон с
-# приложением CSQTT): весь трафик, направленный в ROS-qtt маршрутом, уходит в
-# VK-TURN, замаскированный под медиатрафик звонка, с одним источником — адресом
-# TUN контейнера. Ключ/конфиг живут в ros-qtt/ros-qtt.conf (см. пример).
+# приложением CSQTT): ВСЕ устройства, подключённые к роутеру, уходят в туннель
+# (полный туннель = маршруты 0.0.0.0/1 + 128.0.0.0/1 через контейнер, дефолт).
+# Трафик уходит в VK-TURN, замаскированный под медиатрафик звонка, с одним
+# источником — адресом TUN контейнера. Ключ/конфиг живут в ros-qtt/ros-qtt.conf
+# (см. пример).
 #
 # ПРЕДТРЕБОВАНИЯ (один раз, руками):
 #   1. RouterOS >= 7.5 и пакет `container` (Packages → .npk вашей архитектуры).
@@ -99,6 +101,12 @@
     }
     :if ($started) do={ \
         :delay 5s
+        # ── 5. Маршруты: весь LAN-трафик роутера — в туннель (полный туннель по умолчанию)
+        :foreach r in=[:toarray $ROSQTTRoutesFor] do={ \
+            :if ([:len [/ip route find where dst-address=$r and comment~"ROS-qtt"]] = 0) do={ \
+                /ip route add dst-address=$r gateway=$cip comment="ROS-qtt via ros-qtt (qwe203) · ядро csqtt © amurcanov" \
+            } \
+        }
         :log warning ("ROS-qtt: контейнер запущен (" . $imgName . "). ROS-qtt · by qwe203 · ядро csqtt © amurcanov — в /log print where message~\"ROS-qtt\"") \
     } else={ \
         :log warning ("ROS-qtt: контейнер не в stopped за разумное время (extracting?) — повторите " . \
