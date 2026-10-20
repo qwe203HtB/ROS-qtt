@@ -1,0 +1,167 @@
+diff --git a/rust-client/Cargo.lock b/rust-client/Cargo.lock
+index 8e06e5b..340dbab 100644
+--- a/rust-client/Cargo.lock
++++ b/rust-client/Cargo.lock
+@@ -435,51 +435,6 @@ dependencies = [
+  "hybrid-array",
+ ]
+ 
+-[[package]]
+-name = "csqtt-client"
+-version = "2.5.0"
+-dependencies = [
+- "aes",
+- "anyhow",
+- "arc-swap",
+- "aws-lc-rs",
+- "base64 0.23.1",
+- "bytes",
+- "clap",
+- "crc32fast",
+- "crossbeam-queue",
+- "ctr",
+- "flate2",
+- "futures",
+- "getrandom 0.4.3",
+- "hex",
+- "hkdf",
+- "hmac",
+- "image",
+- "libc",
+- "md-5",
+- "netstack-smoltcp",
+- "nix",
+- "primp",
+- "primp-rustls",
+- "primp-tokio-rustls",
+- "proptest",
+- "rand 0.10.2",
+- "rcgen",
+- "regex-lite",
+- "serde",
+- "serde_json",
+- "sha1",
+- "sha2",
+- "socket2",
+- "tokio",
+- "tokio-util",
+- "url",
+- "uuid",
+- "webpki-roots",
+- "x25519-dalek",
+-]
+-
+ [[package]]
+ name = "ctr"
+ version = "0.10.1"
+@@ -1712,6 +1667,51 @@ dependencies = [
+  "windows-sys 0.52.0",
+ ]
+ 
++[[package]]
++name = "ros-qtt-client"
++version = "2.5.0-rosqtt.1"
++dependencies = [
++ "aes",
++ "anyhow",
++ "arc-swap",
++ "aws-lc-rs",
++ "base64 0.23.1",
++ "bytes",
++ "clap",
++ "crc32fast",
++ "crossbeam-queue",
++ "ctr",
++ "flate2",
++ "futures",
++ "getrandom 0.4.3",
++ "hex",
++ "hkdf",
++ "hmac",
++ "image",
++ "libc",
++ "md-5",
++ "netstack-smoltcp",
++ "nix",
++ "primp",
++ "primp-rustls",
++ "primp-tokio-rustls",
++ "proptest",
++ "rand 0.10.2",
++ "rcgen",
++ "regex-lite",
++ "serde",
++ "serde_json",
++ "sha1",
++ "sha2",
++ "socket2",
++ "tokio",
++ "tokio-util",
++ "url",
++ "uuid",
++ "webpki-roots",
++ "x25519-dalek",
++]
++
+ [[package]]
+ name = "rustc-hash"
+ version = "2.1.3"
+diff --git a/rust-client/Cargo.toml b/rust-client/Cargo.toml
+index 62fa9ba..f62861d 100644
+--- a/rust-client/Cargo.toml
++++ b/rust-client/Cargo.toml
+@@ -1,12 +1,14 @@
+ [package]
+-name = "csqtt-client"
+-version = "2.5.0"
++# ROS-qtt (qwe203, 2026): клиент csqtt, пересобранный под MikroTik RouterOS (container).
++# Ядро — csqtt амурканова; версия несёт суффикс -rosqtt.<n>. Флаг всегда тот же: ядро апстрима.
++name = "ros-qtt-client"
++version = "2.5.0-rosqtt.1"
+ edition = "2024"
+ rust-version = "1.97.1"
+ license = "Unlicense"
+ 
+ [[bin]]
+-name = "client"
++name = "ros-qtt"
+ path = "main.rs"
+ 
+ [dependencies]
+diff --git a/rust-client/main.rs b/rust-client/main.rs
+index 0502c91..a3319c2 100644
+--- a/rust-client/main.rs
++++ b/rust-client/main.rs
+@@ -159,6 +159,7 @@ fn main() {
+         }
+     }));
+     let arguments = Arguments::parse_from(normalized_arguments());
++    rosqtt_banner();
+     let runtime = match build_runtime(runtime_worker_threads(
+         arguments.workers,
+         arguments.runtime_threads,
+@@ -886,6 +887,24 @@ fn print_configuration(
+     crate::log_error!("[КЛИЕНТ] ═══════════════════════════════════════");
+ }
+ 
++// ─────────────────────────────────────────────────────────────────────────────
++// ROS-qtt (by qwe203, 2026) — клиент csqtt под MikroTik RouterOS (container).
++// Ядро: amurcanov/csqtt v2.5.0, лицензия PolyForm-Noncommercial-1.0.0
++// (использование — только в некоммерческих целях). Строка авторства печатается
++// в stderr при каждом старте, до логов ядра — она же попадает в /log RouterOS.
++// ─────────────────────────────────────────────────────────────────────────────
++fn rosqtt_banner() {
++    const SIGNATURE: &str = "ROS-qtt · by qwe203 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)\n";
++    #[cfg(unix)]
++    unsafe {
++        let _ = libc::write(libc::STDERR_FILENO, SIGNATURE.as_ptr().cast(), SIGNATURE.len());
++    }
++    #[cfg(not(unix))]
++    {
++        eprint!("{SIGNATURE}");
++    }
++}
++
+ #[cfg(test)]
+ mod worker_count_tests {
+     use super::*;
