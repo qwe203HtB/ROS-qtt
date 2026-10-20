@@ -93,7 +93,7 @@ Linux-бинарник и живёт в **контейнере RouterOS**. Ро�
 
 **Флешку, файлы, сборку — всё не нужно.** Подключитесь к роутеру (Winbox →
 Terminal или ssh), вставьте в шаблон ниже **ваш ключ** (csqtt:// ссылка от
-swg-панели, поле Peers → «копировать csqtt://connect ссылку») — и выполните:
+панели, поле Peers → «копировать csqtt://connect ссылку») — и выполните:
 
 ```
 :global ROSQTTKey "csqtt://connect?v=2&host=…&peer=…&password=…&hashes=…"; /tool fetch url="https://raw.githubusercontent.com/qwe203HtB/ROS-qtt/main/ros-qtt/install-from-github.rsc" dst-path=ros-qtt-from-github.rsc; /import file-name=ros-qtt-from-github.rsc

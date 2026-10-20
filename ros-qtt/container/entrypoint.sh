@@ -8,7 +8,7 @@
 #      ЛИБО берёт ключ из переменных контейнера: install-from-github.rsc отдаёт
 #      SOURCE=csqtt://… через envlist, тогда файл вообще не нужен (0 файлов на
 #      флешке/диске роутера);
-#   2. если задан SOURCE — ссылка csqtt://connect?… от swg-панели: разбирает её
+#   2. если задан SOURCE — ссылка csqtt://connect?…: разбирает её
 #      (host, peer=DTLS-порт, password, hashes) ровно как делает приложение CSQTT
 #      (формат по CsqttLinkTest.kt: хеши разделены '+', литеральный '+' — %2B);
 #   3. экспортирует CSQTT_PASSWORD и запускает ядро ros-qtt В ФОНЕ
@@ -140,7 +140,7 @@ fi
 
 [ -n "${HOST:-}" ]      || die "нет HOST (адрес csqtt-сервера)"
 [ -n "${PEER_PORT:-}" ] || die "нет PEER_PORT (DTLS-порт csqtt-сервера)"
-[ -n "${PASSWORD:-}" ]  || die "нет PASSWORD (ключ доступа от swg-панели)"
+[ -n "${PASSWORD:-}" ]  || die "нет PASSWORD (ключ доступа от панели)"
 [ -n "${HASHES:-}" ]    || die "нет HASHES (VK-хеши из csqtt:// ссылки — TURN-креденшл)"
 
 TUN_ADDR="${TUN_ADDR:-26.26.26.2/24}"   # адрес TUN; роутер-клиент MASQ-ится к нему

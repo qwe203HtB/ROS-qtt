@@ -6,8 +6,8 @@
 # ══════════════════════════════════════════════════════════════════════════
 
 # ── Вариант «кликнул — вставил» ─────────────────────────────────────────────
-# Единая ссылка от swg-панели (Peers → копировать csqtt:// ссылку, или страница
-# подписки swgSub → CSQTT). entrypoint разберёт её сам: host/peer/password/hashes.
+# Единая ссылка csqtt:// (в панели: Peers → копировать csqtt:// ссылку, или страница
+# подписки → CSQTT). entrypoint разберёт её сам: host/peer/password/hashes.
 # HOST/PEER_PORT/PASSWORD/HASHES, заданные явно ниже, ВАЖНЕЕ полей этой ссылки.
 #
 SOURCE=csqtt://connect?v=2&host=203.0.113.10&peer=56003&password=S3cr3t%21&hashes=h4sh1+h4sh2

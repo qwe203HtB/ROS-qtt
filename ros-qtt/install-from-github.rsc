@@ -4,7 +4,7 @@
 # на флешку/диск роутера не нужно — ключ передаётся прямо в команде.
 # by qwe203 · 2026 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)
 #
-# ОДНА КОМАНДА (терминал RouterOS; ключ — csqtt:// ссылка от swg-панели):
+# ОДНА КОМАНДА (терминал RouterOS; ключ — csqtt:// ссылка от панели):
 #   :global ROSQTTKey "csqtt://connect?v=2&host=…&peer=…&password=…&hashes=…"; /tool fetch url="https://raw.githubusercontent.com/qwe203HtB/ROS-qtt/main/ros-qtt/install-from-github.rsc" dst-path=ros-qtt-from-github.rsc; /import file-name=ros-qtt-from-github.rsc
 #
 #   Литеральный «+» внутри хешей в ссылке записывается панелью как %2B — так и

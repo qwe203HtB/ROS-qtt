@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build ROS-qtt (by qwe203, 2026): клиент csqtt v2.5.0 © amurcanov, пересобранный
 # под MikroTik RouterOS (container) — статический musl-бинарник + tun-dispatch.
-# Рецепт повторяет forks/csqtt/build.sh из swg-панели (устоявшийся zigbuild путь).
+# Проверенный zigbuild-рецепт (cargo-zigbuild, статические musl-бинарники).
 #
 # Usage:   bash build.sh <out-dir> [amd64|arm64]     (default arch: amd64)
 # Needs:   cargo + rustup (toolchain 1.97.1) + zig + cargo-zigbuild on PATH.
