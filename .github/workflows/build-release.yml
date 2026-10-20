@@ -89,12 +89,12 @@ jobs:
           ROS-qtt · by qwe203 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)
           EON
           )
-          gh release create "$TAG" \
+          gh release create -R "$GITHUB_REPOSITORY" "$TAG" \
             ros-qtt-amd64.tar/ros-qtt-amd64.tar \
             ros-qtt-arm64.tar/ros-qtt-arm64.tar \
             --title "ROS-qtt $TAG — образы контейнеров для RouterOS (amd64 + arm64)" \
             --notes "$NOTES" \
-            || gh release upload "$TAG" \
+            || gh release upload -R "$GITHUB_REPOSITORY" "$TAG" \
               ros-qtt-amd64.tar/ros-qtt-amd64.tar \
               ros-qtt-arm64.tar/ros-qtt-arm64.tar \
               --clobber
