@@ -159,6 +159,7 @@ fn main() {
         }
     }));
     let arguments = Arguments::parse_from(normalized_arguments());
+    rosqtt_banner();
     let runtime = match build_runtime(runtime_worker_threads(
         arguments.workers,
         arguments.runtime_threads,
@@ -884,6 +885,24 @@ fn print_configuration(
         );
     }
     crate::log_error!("[КЛИЕНТ] ═══════════════════════════════════════");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROS-qtt (by qwe203, 2026) — клиент csqtt под MikroTik RouterOS (container).
+// Ядро: amurcanov/csqtt v2.5.0, лицензия PolyForm-Noncommercial-1.0.0
+// (использование — только в некоммерческих целях). Строка авторства печатается
+// в stderr при каждом старте, до логов ядра — она же попадает в /log RouterOS.
+// ─────────────────────────────────────────────────────────────────────────────
+fn rosqtt_banner() {
+    const SIGNATURE: &str = "ROS-qtt · by qwe203 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)\n";
+    #[cfg(unix)]
+    unsafe {
+        let _ = libc::write(libc::STDERR_FILENO, SIGNATURE.as_ptr().cast(), SIGNATURE.len());
+    }
+    #[cfg(not(unix))]
+    {
+        eprint!("{SIGNATURE}");
+    }
 }
 
 #[cfg(test)]

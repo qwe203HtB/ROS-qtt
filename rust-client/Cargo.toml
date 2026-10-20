@@ -1,12 +1,14 @@
 [package]
-name = "csqtt-client"
-version = "2.5.0"
+# ROS-qtt (qwe203, 2026): клиент csqtt, пересобранный под MikroTik RouterOS (container).
+# Ядро — csqtt амурканова; версия несёт суффикс -rosqtt.<n>. Флаг всегда тот же: ядро апстрима.
+name = "ros-qtt-client"
+version = "2.5.0-rosqtt.1"
 edition = "2024"
 rust-version = "1.97.1"
 license = "Unlicense"
 
 [[bin]]
-name = "client"
+name = "ros-qtt"
 path = "main.rs"
 
 [dependencies]
