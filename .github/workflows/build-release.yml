@@ -40,16 +40,18 @@ jobs:
           echo "/opt/zig" >> "$GITHUB_PATH"
 
       - name: Build binaries
+        working-directory: ros-qtt
         run: bash build.sh dist ${{ matrix.arch }}
 
       - name: Pack container image
+        working-directory: ros-qtt
         run: bash pack.sh ${{ matrix.arch }} dist
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ros-qtt-${{ matrix.arch }}.tar
-          path: ros-qtt-${{ matrix.arch }}.tar
+          path: ros-qtt/ros-qtt-${{ matrix.arch }}.tar
           if-no-files-found: error
 
   release:
