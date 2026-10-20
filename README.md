@@ -59,7 +59,8 @@ Linux-бинарник и живёт в **контейнере RouterOS**. Ро�
 | [`ros-qtt/build.sh`](ros-qtt/build.sh) | сборка ядра из пина апстрима: musl, статика, amd64 + arm64 |
 | [`ros-qtt/tun-dispatch.c`](ros-qtt/tun-dispatch.c) | C-хелпер : открывает `/dev/net/tun`, создаёт `rosqtt0` и передаёт fd ядру через абстрактный UDS — ровно роль, которую на Android играет VpnService |
 | [`ros-qtt/container/`](ros-qtt/container) | Dockerfile (alpine 3.21 + iptables + iproute2) и entrypoint: разбор csqtt-ключа, TUN, маршруты, MASQ LAN-трафика к адресу TUN |
-| [`ros-qtt/install-ros-qtt.rsc`](ros-qtt/install-ros-qtt.rsc) | идемпотентный инсталлер RouterOS (`/import`, проверяем idempotent: повторный запуск ничего не ломает) |
+| [`ros-qtt/install-from-github.rsc`](ros-qtt/install-from-github.rsc) | **инсталлер «одной командой»**: сам качает образ из Releases, ключ берёт из `ROSQTTKey`/envlist — без флешки и без файлов |
+| [`ros-qtt/install-ros-qtt.rsc`](ros-qtt/install-ros-qtt.rsc) | ручной инсталлер (ключ из файла ros-qtt.conf на диске; сценарий «собрал сам»)
 | [`ros-qtt/ros-qtt.conf.example`](ros-qtt/ros-qtt.conf.example) | пример ключа доступа (формат `csqtt://connect?v=2&…`) |
 | [`ros-qtt/pack.sh`](ros-qtt/pack.sh) | упаковка готового контейнера под RouterOS |
 
@@ -90,19 +91,25 @@ Linux-бинарник и живёт в **контейнере RouterOS**. Ро�
 
 ## Установка одной командой
 
-Когда на диске роутера уже лежат два файла (`disk1/ros-qtt.tar` — образ из
-`pack.sh`, и `disk1/ros-qtt/ros-qtt.conf` — ключ), установка целиком это
-**одна команда** в терминале RouterOS:
+**Флешку, файлы, сборку — всё не нужно.** Подключитесь к роутеру (Winbox →
+Terminal или ssh), вставьте в шаблон ниже **ваш ключ** (csqtt:// ссылка от
+swg-панели, поле Peers → «копировать csqtt://connect ссылку») — и выполните:
 
 ```
-/tool fetch url="https://raw.githubusercontent.com/qwe203HtB/ROS-qtt/main/ros-qtt/install-ros-qtt.rsc" dst-path=install-ros-qtt.rsc; /import file-name=install-ros-qtt.rsc
+:global ROSQTTKey "csqtt://connect?v=2&host=…&peer=…&password=…&hashes=…"; /tool fetch url="https://raw.githubusercontent.com/qwe203HtB/ROS-qtt/main/ros-qtt/install-from-github.rsc" dst-path=ros-qtt-from-github.rsc; /import file-name=ros-qtt-from-github.rsc
 ```
 
-Забирает актуальный инсталлер из этого репо и запускает: он сам создаёт
-veth/мост/NAT, том конфига, контейнер, добавляет маршруты полного туннеля
-и запускает контейнер. Повторный `/import` ничего не дублирует.
-Когда ОПЦИИ в инсталлере меняли под себя — держите свою копию `install-ros-qtt.rsc`
-на диске и выполняйте просто `/import file-name=install-ros-qtt.rsc`.
+Скрипт сам: скачает образ контейнера под архитектуру роутера с **Releases
+этого репозитория** (amd64/arm64), соберёт переменную окружения с ключом
+(SOURCE — никаких файлов с ключом), создаст veth/мост/NAT, контейнер и
+**маршруты полного туннеля**, и запустит контейнер. Литеральный «+» в хешах
+записывайте как `%2B` (в этой панели он уже записан так). Повторный запуск
+той же команды = смена ключа / обновление (идемпотентно).
+
+Если ключ в переменную не захочется пихать — можно перетащить файл
+`ros-qtt.conf` в винбоксовые **Files** (без флешки): скрипт подхватит его.
+Требования: RouterOS ≥ 7.5 + пакет `container` и разово
+`/system/device-mode/update container=yes`.
 
 ## Все устройства роутера идут через туннель
 

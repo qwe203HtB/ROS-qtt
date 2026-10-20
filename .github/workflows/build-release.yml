@@ -1,0 +1,88 @@
+# ROS-qtt · сборка образов контейнеров (amd64 + arm64) и публикация в Releases.
+# Результат — ros-qtt-<arch>.tar (docker save) на «Releases» этого репозитория:
+# роутерский install-from-github.rsc качает их напрямую
+# (/releases/latest/download/ros-qtt-<arch>.tar). Запуск: пуш тега v* или руками
+# (workflow_dispatch → релиз v0.2.0).
+# by qwe203 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)
+name: build-release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ros-qtt (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install rust 1.97.1 + musl targets
+        run: |
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal \
+            -t x86_64-unknown-linux-musl -t aarch64-unknown-linux-musl
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install cargo-zigbuild + zig
+        run: |
+          cargo install --locked cargo-zigbuild
+          mkdir -p /opt/zig
+          curl -sSL "https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz" \
+            | tar xJ -C /opt/zig --strip-components 1
+          echo "/opt/zig" >> "$GITHUB_PATH"
+
+      - name: Build binaries
+        run: bash build.sh dist ${{ matrix.arch }}
+
+      - name: Pack container image
+        run: bash pack.sh ${{ matrix.arch }} dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ros-qtt-${{ matrix.arch }}.tar
+          path: ros-qtt-${{ matrix.arch }}.tar
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Publish to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="$REF_NAME"
+          case "$REF_TYPE:$TAG" in tag:v*) : ;;
+            *) TAG="v0.2.0" ;;
+          esac
+          gh release create "$TAG" \
+            ros-qtt-amd64.tar/ros-qtt-amd64.tar \
+            ros-qtt-arm64.tar/ros-qtt-arm64.tar \
+            --title "ROS-qtt $TAG — образы контейнеров для RouterOS (amd64 + arm64)" \
+            --notes "Образы ros-qtt-<arch>.tar (docker save) от \`pack.sh\`.
+
+Установка в роутер — **одной командой** (роутер сам скачает с этого Releases):
+см. [ros-qtt/README.md](https://github.com/qwe203HtB/ROS-qtt/blob/main/ros-qtt/README.md).
+
+---
+
+ROS-qtt · by qwe203 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)" \
+          || gh release upload "$TAG" \
+            ros-qtt-amd64.tar/ros-qtt-amd64.tar \
+            ros-qtt-arm64.tar/ros-qtt-arm64.tar \
+            --clobber

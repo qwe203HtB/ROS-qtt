@@ -4,7 +4,10 @@
 # Ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)
 #
 # Что делает:
-#   1. читает /ros-qtt/ros-qtt.conf (строки KEY=VAL; см. ros-qtt.conf.example);
+#   1. читает /ros-qtt/ros-qtt.conf (строки KEY=VAL; см. ros-qtt.conf.example) —
+#      ЛИБО берёт ключ из переменных контейнера: install-from-github.rsc отдаёт
+#      SOURCE=csqtt://… через envlist, тогда файл вообще не нужен (0 файлов на
+#      флешке/диске роутера);
 #   2. если задан SOURCE — ссылка csqtt://connect?… от swg-панели: разбирает её
 #      (host, peer=DTLS-порт, password, hashes) ровно как делает приложение CSQTT
 #      (формат по CsqttLinkTest.kt: хеши разделены '+', литеральный '+' — %2B);
@@ -54,14 +57,26 @@ urldecode() {
 }
 urldecode_line() { printf '%s' "$1" | urldecode; }
 
-[ -r "$CONF" ] || die "нет $CONF — сделай mount (см. install-ros-qtt.rsc: /container/mounts … dst=$ROSQTT_HOME) и положи ros-qtt.conf"
+# Ключ приходит ЛИБО из конфиг-файла, ЛИБО из переменных контейнера envlist
+# (SOURCE — ссылка csqtt://…; так работает install-from-github.rsc: флешка и
+# файлы на диске роутера не нужны). Файл обязателен только если SOURCE пуст.
+HAVE_CONF=1
+[ -r "$CONF" ] || HAVE_CONF=0
+if [ "$HAVE_CONF" = 0 ]; then
+    if [ -n "${SOURCE:-}" ]; then
+        echo "[ROS-qtt] ros-qtt.conf нет — работаю от SOURCE из переменных контейнера"
+    else
+        die "нет $CONF и нет SOURCE — либо mount с ros-qtt.conf, либо задай ключ через envlist (install-from-github.rsc)"
+    fi
+fi
 
 # Парсер конфига без «. $CONF»: значения (например, csqtt://…&peer=…) содержат
 # спецсимволы, которые сломались бы в шелл при простом source. Формат файла:
 # непустые строки KEY=VAL, «#» — комментарий. Кавычки не нужны и НЕ снимаются.
-SOURCE=""; HOST=""; PEER_PORT=""; PASSWORD=""; HASHES=""
+SOURCE="${SOURCE:-}"; HOST=""; PEER_PORT=""; PASSWORD=""; HASHES=""
 TUN_ADDR=""; TUN_MTU=""; WORKERS=""
 GATEWAY=""; EXCLUDE_SUBNETS=""
+if [ "$HAVE_CONF" = 1 ]; then
 while IFS= read -r line || [ -n "$line" ]; do
     # отступы слева: обрежем через awk-обрезку
     line=$(printf '%s' "$line" | sed 's/^[\t ]*//')
@@ -88,6 +103,7 @@ while IFS= read -r line || [ -n "$line" ]; do
         EXTRA_ARGS)      EXTRA_ARGS="${EXTRA_ARGS:-$val}" ;;
     esac
 done < "$CONF"
+fi
 : "${EXTRA_ARGS:=}"
 
 # ── Разбор csqtt:// ссылки, если задана (явные поля важнее полей ссылки) ─────
