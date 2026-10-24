@@ -30,12 +30,20 @@
 :global ROSQTTGatewayIP "172.20.0.1"     ; # IP моста; ТО ЖЕ ЧИСЛО в ros-qtt.conf (GATEWAY=)
 :global ROSQTTImageFile "ros-qtt.tar"    ; # имя образа на диске
 :global ROSQTTDNS       "1.1.1.1,8.8.8.8"  # DNS контейнера
-# Маршруты, завернутые в ROS-qtt («;»-разделённый список):
-#   полный туннель (по умолчанию): "0.0.0.0/1;128.0.0.0/1"
-#     half-пути 0/1+128/1 перекрывают ЛЮБОЙ дефолт-маршрут, но сам дефолт и
-#     доступ к роутеру не трогают — откат: просто удалить эти два маршрута;
-#   только выбранное (пример): "192.168.20.0/24;10.55.0.0/16"
-#     (тогда клиентские «исключения» смотрите в ros-qtt.conf: EXCLUDE_SUBNETS)
+# ── РЕЖИМ ЗАВОРОТА ТРАФИКА (что уходит в туннель) ────────────────────────────
+:global ROSQTTMode "devices"
+#   "devices" — через туннель ходит ТОЛЬКО выбранное (по IP/подсети устройства,
+#               mark-routing в отдельную таблицу маршрутов). Дефолт форка:
+#               остальной трафик (в интернет и к роутеру) идёт как раньше.
+#   "nets"    — по сетям НАЗНАЧЕНИЯ: dst в списке ниже уходит в туннель.
+#   "full"    — полный туннель: ВСЕ устройства роутера (как было в 0.1.0).
+# ВАЖНО: выбор «по приложению» на одном устройстве роутер сделать не может —
+#   маршрутизация в RouterOS работает по IP/подсети. Хотите именно выбор между
+#   приложениями на одном телефоне/ПК — думайте на самом устройстве (второй
+#   сетевой профиль и т.п.), UI такой у RouterOS нет.
+# устройства/подсети, которые уходят в туннель (mode=devices), через «;»:
+:global ROSQTTDevices "192.168.8.20;192.168.8.0/24"
+# сети назначения для mode=nets (по умолчанию — полный туннель 0/1+128/1):
 :global ROSQTTRoutesFor "0.0.0.0/1;128.0.0.0/1"
 
 :local disk    $ROSQTTDisk
@@ -101,11 +109,39 @@
     }
     :if ($started) do={ \
         :delay 5s
-        # ── 5. Маршруты: весь LAN-трафик роутера — в туннель (полный туннель по умолчанию)
-        :foreach r in=[:toarray $ROSQTTRoutesFor] do={ \
-            :if ([:len [/ip route find where dst-address=$r and comment~"ROS-qtt"]] = 0) do={ \
-                /ip route add dst-address=$r gateway=$cip comment="ROS-qtt via ros-qtt (qwe203) · ядро csqtt © amurcanov" \
-            } \
+        # ── 5. Маршруты по $ROSQTTMode: devices | nets | full ────────────────
+        # (в туннель уходит только выбранное; остальное — как раньше)
+        :if ($ROSQTTMode = "devices") do={
+            /routing table
+            :if ([:len [find where name="ROSQTT-rt"]] = 0) do={ \
+                add name="ROSQTT-rt" fib }
+            :foreach d in=[:toarray $ROSQTTDevices] do={ \
+                :if ([:len [/ip firewall mangle find where src-address=$d and comment~"ROS-qtt"]] = 0) do={ \
+                    /ip firewall mangle add chain=prerouting src-address=$d \
+                        action=mark-routing new-routing-mark="ROSQTT-rt" passthrough=yes \
+                        comment="ROS-qtt device · by qwe203" \
+                } \
+            }
+            :if ([:len [/ip route find where routing-table="ROSQTT-rt" and comment~"ROS-qtt"]] = 0) do={ \
+                /ip route add dst-address=0.0.0.0/0 gateway=$cip routing-table="ROSQTT-rt" \
+                    comment="ROS-qtt devices (qwe203) · ядро csqtt © amurcanov" \
+            }
+            :log warning ("ROS-qtt (devices): в туннель завёрнуты только " . $ROSQTTDevices . " — остальной трафик идёт напрямую")
+        }
+        :if (($ROSQTTMode = "nets") or ($ROSQTTMode = "full")) do={
+            :foreach r in=[:toarray $ROSQTTRoutesFor] do={ \
+                :if ([:len [/ip route find where dst-address=$r and comment~"ROS-qtt"]] = 0) do={ \
+                    /ip route add dst-address=$r gateway=$cip comment="ROS-qtt via ros-qtt (qwe203) · ядро csqtt © amurcanov" \
+                } \
+            }
+            :if ($ROSQTTMode = "nets") do={ \
+                :log warning ("ROS-qtt (nets): в туннель завёрнуты только сети " . $ROSQTTRoutesFor) \
+            } else={ \
+                :log warning "ROS-qtt (full): ВСЕ устройства роутера завёрнуты в туннель (0/1+128/1)" \
+            }
+        }
+        :if ($ROSQTTMode != "devices" and $ROSQTTMode != "nets" and $ROSQTTMode != "full") do={ \
+            :log error ("ROS-qtt: неизвестный ROSQTTMode=" . $ROSQTTMode . " — маршруты не менялись (devices|nets|full)") \
         }
         :log warning ("ROS-qtt: контейнер запущен (" . $imgName . "). ROS-qtt · by qwe203 · ядро csqtt © amurcanov — в /log print where message~\"ROS-qtt\"") \
     } else={ \
@@ -119,10 +155,15 @@
 #   /container print                       — статус контейнера
 #   /log print where message~\"ROS-qtt\"    — подпись: ROS-qtt · by qwe203 · ядро csqtt © amurcanov
 #   /container/shell 0                     — внутри: `ip route`, `iptables -t nat -S`
-#   /ip route print where comment~\"ROS-qtt\" — что завернуто; удалить — откат
-# ПОЛНЫЙ ОТКАТ:
-#   /ip route remove [find where comment~\"ROS-qtt\"]
-#   /firewall nat remove [find where comment~\"ROS-qtt\"]
+# ПРИМЕРЫ ПРОВЕРКИ КУДА ХОДИТ ТРАФИК:
+#   /ip route print where comment~"ROS-qtt"          — сети/таблица устройств
+#   /ip route print where routing-table="ROSQTT-rt"  — заворот для mode=devices
+#   /ip firewall mangle print where comment~"ROS-qtt" — какие IP завёрнуты
+#ПОЛНЫЙ ОТКАТ (туннель для всех/выбранных):
+#   /ip route remove [find where comment~"ROS-qtt"]
+#   /ip firewall mangle remove [find where comment~"ROS-qtt"]
+#   /routing table remove [find where name="ROSQTT-rt"]
+#   /firewall nat remove [find where comment~"ROS-qtt"]
 #   /container remove ros-qtt; /interface veth remove ros-qtt-veth
 #   /interface bridge remove ros-qtt-br
 # ══════════════════════════════════════════════════════════════════════════════

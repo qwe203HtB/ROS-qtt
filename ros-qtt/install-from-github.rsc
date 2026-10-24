@@ -20,6 +20,15 @@
 #
 # Смена ключа: выполнить ту же одну команду с новым ROSQTTKey (скрипт
 #   перезапишет переменную SOURCE и перезапустит контейнер).
+#
+# ХОДИТ ЧЕРЕЗ ТУННЕЛЬ ТОЛЬКО ВЫБРАННОЕ (не весь роутер): добавьте к той же
+#   команде два глобальных перед /import:
+#   :global ROSQTTMode "devices"; :global ROSQTTDevices "192.168.8.20;192.168.8.0/24"
+#   (выбор по IP/подсети УСТРОЙСТВА: телефон/ПК/камера с таким адресом уйдут в
+#   туннель, остальные — напрямую. Выбор между приложениями на одном устройстве
+#   роутером не делается — маршрутизация работает по IP. Полный туннель, как
+#   раньше: ROSQTTMode="full" или не задавать ничего. По сетям назначения:
+#   ROSQTTMode="nets"; ROSQTTRoutesFor="192.168.20.0/24;10.55.0.0/16".)
 # ══════════════════════════════════════════════════════════════════════════════
 
 :global ROSQTTKey
@@ -32,10 +41,22 @@
 :local brName "ros-qtt-br"
 :local imgName "ros-qtt"
 :local dnsServers "1.1.1.1,8.8.8.8"
-# маршруты полного туннеля: ВСЕ устройства, подключённые к роутеру, идут
-# через csqtt-туннель; локальные сети роутера не заворачиваются
-# (внутри контейнера их обрабатывает EXCLUDE_SUBNETS)
+# ── РЕЖИМ ЗАВОРОТА (см. одноимённый блок в шапке и install-ros-qtt.rsc) ─────
+# Задайте ПЕРЕД import глобальные из терминала (необязательно):
+#   :global ROSQTTMode   "devices"   — по устройствам (только они в туннеле)
+#   :global ROSQTTDevices "192.168.8.20;192.168.8.0/24"
+#   :global ROSQTTMode   "nets"      — по сетям назначения
+#   :global ROSQTTRoutesFor "192.168.20.0/24;10.55.0.0/16"
+# Не задали ничего → полный туннель (как раньше, 0/1+128/1).
+:global ROSQTTMode
+:global ROSQTTDevices
+:global ROSQTTRoutesFor
+:local mode $ROSQTTMode
+:if ([:typeof $mode] = "nil") do={ :set mode "full" }
+:local devices ""
+:if ([:typeof $ROSQTTDevices] != "nil") do={ :set devices $ROSQTTDevices }
 :local routesFor "0.0.0.0/1;128.0.0.0/1"
+:if ([:typeof $ROSQTTRoutesFor] != "nil") do={ :set routesFor $ROSQTTRoutesFor }
 
 :log warning "ROS-qtt: установка с GitHub; ядро csqtt © amurcanov (PolyForm-NC)"
 
@@ -156,13 +177,44 @@
     :error "not started"
 }
 
-# ── 5. Маршруты полного туннеля: весь LAN-трафик роутера — в контейнер ───────
+# ── 5. Маршруты по режиму: devices | nets | full ─────────────────────────────
 :delay 5s
-:foreach r in=[:toarray $routesFor] do={ \
-    :if ([:len [/ip route/find where dst-address=$r and comment~"ROS-qtt"]] = 0) do={ \
-        /ip route add dst-address=$r gateway=$cip \
-            comment="ROS-qtt via ros-qtt (qwe203) · ядро csqtt © amurcanov" \
-    } \
+:if ($mode = "devices") do={
+    :if ([:len $devices] = 0) do={ \
+        :log error "ROS-qtt (devices): пусто ROSQTTDevices — задайте список IP/подсетей через «;» и повторите import; маршруты не менялись" \
+    } else={
+        /routing table
+        :if ([:len [find where name="ROSQTT-rt"]] = 0) do={ \
+            add name="ROSQTT-rt" fib }
+        :foreach d in=[:toarray $devices] do={ \
+            :if ([:len [/ip firewall mangle find where src-address=$d and comment~"ROS-qtt"]] = 0) do={ \
+                /ip firewall mangle add chain=prerouting src-address=$d \
+                    action=mark-routing new-routing-mark="ROSQTT-rt" passthrough=yes \
+                    comment="ROS-qtt device · by qwe203" \
+            } \
+        }
+        :if ([:len [/ip route find where routing-table="ROSQTT-rt" and comment~"ROS-qtt"]] = 0) do={ \
+            /ip route add dst-address=0.0.0.0/0 gateway=$cip routing-table="ROSQTT-rt" \
+                comment="ROS-qtt devices (qwe203) · ядро csqtt © amurcanov" \
+        }
+        :log warning ("ROS-qtt (devices): в туннель завёрнуты только " . $devices . " — остальной трафик идёт напрямую")
+    }
+}
+:if (($mode = "nets") or ($mode = "full")) do={
+    :foreach r in=[:toarray $routesFor] do={ \
+        :if ([:len [/ip route find where dst-address=$r and comment~"ROS-qtt"]] = 0) do={ \
+            /ip route add dst-address=$r gateway=$cip \
+                comment="ROS-qtt via ros-qtt (qwe203) · ядро csqtt © amurcanov" \
+        } \
+    }
+    :if ($mode = "nets") do={ \
+        :log warning ("ROS-qtt (nets): в туннель завёрнуты только сети " . $routesFor) \
+    } else={ \
+        :log warning "ROS-qtt (full): ВСЕ устройства роутера завёрнуты в туннель (0/1+128/1)" \
+    }
+}
+:if ($mode != "devices" and $mode != "nets" and $mode != "full") do={ \
+    :log error ("ROS-qtt: неизвестный ROSQTTMode=" . $mode . " — маршруты не менялись (devices|nets|full)") \
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
