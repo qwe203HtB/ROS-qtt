@@ -31,16 +31,22 @@
 :global ROSQTTImageFile "ros-qtt.tar"    ; # имя образа на диске
 :global ROSQTTDNS       "1.1.1.1,8.8.8.8"  # DNS контейнера
 # ── РЕЖИМ ЗАВОРОТА ТРАФИКА (что уходит в туннель) ────────────────────────────
-:global ROSQTTMode "devices"
-#   "devices" — через туннель ходит ТОЛЬКО выбранное (по IP/подсети устройства,
-#               mark-routing в отдельную таблицу маршрутов). Дефолт форка:
-#               остальной трафик (в интернет и к роутеру) идёт как раньше.
-#   "nets"    — по сетям НАЗНАЧЕНИЯ: dst в списке ниже уходит в туннель.
-#   "full"    — полный туннель: ВСЕ устройства роутера (как было в 0.1.0).
-# ВАЖНО: выбор «по приложению» на одном устройстве роутер сделать не может —
-#   маршрутизация в RouterOS работает по IP/подсети. Хотите именно выбор между
-#   приложениями на одном телефоне/ПК — думайте на самом устройстве (второй
-#   сетевой профиль и т.п.), UI такой у RouterOS нет.
+:global ROSQTTMode "sites"
+#   "sites"   — через туннель ходит ТОЛЬКО выбранные сайты/приложения (по
+#               доменам назначения): роутер резолвит домены из ROSQTTSites
+#               (скрипт+планировщик каждые 1 мин) и заворачивает трафик к их
+#               IP в туннель (address-list + mark-routing). Остальное —
+#               напрямую, как раньше.
+#   "devices" — по IP УСТРОЙСТВ из ROSQTTDevices (mangle mark-routing).
+#   "nets"    — по сетям назначения из ROSQTTRoutesFor.
+#   "full"    — полный туннель: ВСЕ устройства роутера.
+# ВАЖНО: «приложение» = его домены. Приложение обычно ходит не на один сайт —
+#   добавьте его CDN/API-домены тоже (и TURN-серверы IP'шками в address-list
+#   "ROSQTT-via-tunnel" вручную, если нужны). Выбор отдельного окна браузера
+#   роутером не делается — маршрутизация в RouterOS работает по IP/домену.
+# сайты/домены, которые уходят в туннель (mode=sites), через «;»:
+#   (ПРИМЕР ниже — замените на свои сети/сервисы!)
+:global ROSQTTSites "vk.com;youtube.com;github.com"
 # устройства/подсети, которые уходят в туннель (mode=devices), через «;»:
 :global ROSQTTDevices "192.168.8.20;192.168.8.0/24"
 # сети назначения для mode=nets (по умолчанию — полный туннель 0/1+128/1):
@@ -109,8 +115,47 @@
     }
     :if ($started) do={ \
         :delay 5s
-        # ── 5. Маршруты по $ROSQTTMode: devices | nets | full ────────────────
+        # ── 5. Маршруты по $ROSQTTMode: sites | devices | nets | full ─────────
         # (в туннель уходит только выбранное; остальное — как раньше)
+        :if ($ROSQTTMode = "sites") do={
+            :if ([:len $ROSQTTSites] = 0) do={ \
+                :log error "ROS-qtt (sites): пусто ROSQTTSites — задайте список доменов через «;» и повторите import; маршруты не менялись"
+            } else={
+                /ip firewall address-list
+                :if ([:len [find where list="ROSQTT-SITES"]] > 0) do={ \
+                    remove [find where list="ROSQTT-SITES"] }
+                :foreach d in=[:toarray $ROSQTTSites] do={ \
+                    add list="ROSQTT-SITES" address=$d comment="ROS-qtt site · by qwe203" }
+                :if ([:len [find where list="ROSQTT-via-tunnel" and comment~"ROS-qtt site"]] > 0) do={ \
+                    remove [find where list="ROSQTT-via-tunnel" and comment~"ROS-qtt site"] }
+                # резолвер: скрипт каждые 1 мин резолвит домены из ROSQTT-SITES
+                # и кладёт их IP в ROSQTT-via-tunnel (его читает mangle ниже)
+                :local src (":do {:foreach d in=[/ip firewall address-list find where list=\"ROSQTT-SITES\"] do={:local dom [/ip firewall address-list get \$d address]; :local ip [:resolve domain-name=\$dom server=1.1.1.1]; :if ([:len \$ip] > 0) do={:if ([:len [/ip firewall address-list find where list=\"ROSQTT-via-tunnel\" and address=\$ip]] = 0) do={/ip firewall address-list add list=\"ROSQTT-via-tunnel\" address=\$ip comment=(\"ROS-qtt site \" . \$dom)}}} on-error={}}")
+                /system script
+                :if ([:len [find where name="ros-qtt-dnssync"]] > 0) do={ \
+                    remove [find where name="ros-qtt-dnssync"] }
+                add name="ros-qtt-dnssync" source=$src policy=read,write,test
+                /system scheduler
+                :if ([:len [find where name="ros-qtt-dnssync"]] = 0) do={ \
+                    add name="ros-qtt-dnssync" interval=1m start-time=startup \
+                        on-event="/system script run ros-qtt-dnssync" \
+                        comment="ROS-qtt site · by qwe203" }
+                /routing table
+                :if ([:len [find where name="ROSQTT-rt"]] = 0) do={ \
+                    add name="ROSQTT-rt" fib }
+                /ip route
+                :if ([:len [find where routing-table="ROSQTT-rt" and comment~"ROS-qtt"]] = 0) do={ \
+                    add dst-address=0.0.0.0/0 gateway=$cip routing-table="ROSQTT-rt" \
+                        comment="ROS-qtt sites (qwe203) · ядро csqtt © amurcanov" }
+                # mangle: трафик к IP выбранных сайтов → туннель (для ВСЕХ устройств)
+                /ip firewall mangle
+                :if ([:len [find where action=mark-routing and new-routing-mark="ROSQTT-rt" and dst-address-list="ROSQTT-via-tunnel"]] = 0) do={ \
+                    add chain=prerouting dst-address-list="ROSQTT-via-tunnel" \
+                        action=mark-routing new-routing-mark="ROSQTT-rt" passthrough=yes \
+                        comment="ROS-qtt sites · by qwe203" }
+                :log warning ("ROS-qtt (sites): в туннель завёрнуты только " . $ROSQTTSites . " — резолвер обновляет список IP каждую минуту; остальной трафик идёт напрямую")
+            }
+        }
         :if ($ROSQTTMode = "devices") do={
             /routing table
             :if ([:len [find where name="ROSQTT-rt"]] = 0) do={ \
@@ -140,8 +185,8 @@
                 :log warning "ROS-qtt (full): ВСЕ устройства роутера завёрнуты в туннель (0/1+128/1)" \
             }
         }
-        :if ($ROSQTTMode != "devices" and $ROSQTTMode != "nets" and $ROSQTTMode != "full") do={ \
-            :log error ("ROS-qtt: неизвестный ROSQTTMode=" . $ROSQTTMode . " — маршруты не менялись (devices|nets|full)") \
+        :if ($ROSQTTMode != "sites" and $ROSQTTMode != "devices" and $ROSQTTMode != "nets" and $ROSQTTMode != "full") do={ \
+            :log error ("ROS-qtt: неизвестный ROSQTTMode=" . $ROSQTTMode . " — маршруты не менялись (sites|devices|nets|full)") \
         }
         :log warning ("ROS-qtt: контейнер запущен (" . $imgName . "). ROS-qtt · by qwe203 · ядро csqtt © amurcanov — в /log print where message~\"ROS-qtt\"") \
     } else={ \
