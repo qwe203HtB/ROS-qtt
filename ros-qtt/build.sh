@@ -3,7 +3,8 @@
 # под MikroTik RouterOS (container) — статический musl-бинарник + tun-dispatch.
 # Проверенный zigbuild-рецепт (cargo-zigbuild, статические musl-бинарники).
 #
-# Usage:   bash build.sh <out-dir> [amd64|arm64]     (default arch: amd64)
+# Usage:   bash build.sh <out-dir> [amd64|arm64|arm]     (default arch: amd64)
+#   arm  — 32-бит ARMv7 (RouterOS "arm": RB4011 и др.)
 # Needs:   cargo + rustup (toolchain 1.97.1) + zig + cargo-zigbuild on PATH.
 # Лицензия: csqtt — PolyForm-Noncommercial-1.0.0, СБОРКА И ИСПОЛЬЗОВАНИЕ —
 # только в некоммерческих целях. ROS-qtt-патч добавляет подпись by qwe203.
@@ -18,7 +19,8 @@ ARCH="${2:-amd64}"
 case "$ARCH" in
   amd64) TARGET="x86_64-unknown-linux-musl";  ZIGTGT="x86_64-linux-musl";  ENVA="X86_64_UNKNOWN_LINUX_MUSL";  CENV="x86_64_unknown_linux_musl" ;;
   arm64) TARGET="aarch64-unknown-linux-musl"; ZIGTGT="aarch64-linux-musl"; ENVA="AARCH64_UNKNOWN_LINUX_MUSL"; CENV="aarch64_unknown_linux_musl" ;;
-  *) echo "arch must be amd64|arm64 (RouterOS container: x86|arm64; arm/EN7562CT — не поддерживается этим рецептом)" >&2; exit 2 ;;
+  arm)   TARGET="armv7-unknown-linux-musleabihf"; ZIGTGT="arm-linux-musleabihf"; ENVA="ARMV7_UNKNOWN_LINUX_MUSLEABIHF"; CENV="armv7_unknown_linux_musleabihf" ;;
+  *) echo "arch must be amd64|arm64|arm (RouterOS container: x86|arm64|arm)" >&2; exit 2 ;;
 esac
 
 WORK="$(mktemp -d)"

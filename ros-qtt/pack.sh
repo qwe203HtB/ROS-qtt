@@ -2,7 +2,7 @@
 # pack.sh — ROS-qtt (by qwe203, 2026): собрать образ контейнера для RouterOS.
 # Результат: ros-qtt-<arch>.tar — загружаете на роутер и указываете в install-ros-qtt.rsc.
 #
-# Usage: bash pack.sh [arm64|amd64] [bin-dir]
+# Usage: bash pack.sh [arm64|amd64|arm] [bin-dir]
 #   bin-dir  — каталог с ros-qtt-linux-<arch> и tun-dispatch-linux-<arch> от build.sh
 # Needs: docker с buildx (или podman). Ни docker, ни podman? Отстылайте Dockerfile
 #   в CI-сборку (GitHub Actions и т.п.) — команда упаковки описана в README.
@@ -19,7 +19,8 @@ trap 'rm -rf "$STAGE"' EXIT
 case "$ARCH" in
   amd64) PLAT="linux/amd64"; SLASH="amd64" ;;
   arm64) PLAT="linux/arm64"; SLASH="arm64" ;;
-  *) echo "arch must be amd64|arm64" >&2; exit 2 ;;
+  arm)   PLAT="linux/arm/v7"; SLASH="arm" ;;
+  *) echo "arch must be amd64|arm64|arm" >&2; exit 2 ;;
 esac
 
 CLI="$BINDIR/ros-qtt-linux-$ARCH"

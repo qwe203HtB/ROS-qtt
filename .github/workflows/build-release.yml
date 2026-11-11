@@ -1,8 +1,8 @@
-# ROS-qtt · сборка образов контейнеров (amd64 + arm64) и публикация в Releases.
+# ROS-qtt · сборка образов контейнеров (amd64 + arm64 + arm) и публикация в Releases.
 # Результат — ros-qtt-<arch>.tar (docker save) на «Releases» этого репозитория:
 # роутерский install-from-github.rsc качает их напрямую
 # (/releases/latest/download/ros-qtt-<arch>.tar). Запуск: пуш тега v* или руками
-# (workflow_dispatch → релиз v0.2.0).
+# (workflow_dispatch → релиз v0.2.0). arm — 32-бит ARMv7 (RB4011 и др. RouterOS "arm").
 # by qwe203 · ядро: csqtt v2.5.0 © amurcanov (PolyForm-Noncommercial-1.0.0)
 name: build-release
 
@@ -21,14 +21,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, arm64]
+        arch: [amd64, arm64, arm]
     steps:
       - uses: actions/checkout@v4
 
       - name: Install rust 1.97.1 + musl targets
         run: |
           curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal \
-            -t x86_64-unknown-linux-musl -t aarch64-unknown-linux-musl
+            -t x86_64-unknown-linux-musl -t aarch64-unknown-linux-musl -t armv7-unknown-linux-musleabihf
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Install cargo-zigbuild + zig
@@ -43,11 +43,11 @@ jobs:
         working-directory: ros-qtt
         run: bash build.sh dist ${{ matrix.arch }}
 
-      - name: Set up QEMU (для apk внутри arm64-образа)
-        if: matrix.arch == 'arm64'
+      - name: Set up QEMU (для apk внутри arm64/arm-образов)
+        if: matrix.arch != 'amd64'
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: arm64
+          platforms: arm,arm64
 
       - name: Pack container image
         working-directory: ros-qtt
@@ -92,9 +92,11 @@ jobs:
           gh release create -R "$GITHUB_REPOSITORY" "$TAG" \
             ros-qtt-amd64.tar/ros-qtt-amd64.tar \
             ros-qtt-arm64.tar/ros-qtt-arm64.tar \
-            --title "ROS-qtt $TAG — образы контейнеров для RouterOS (amd64 + arm64)" \
+            ros-qtt-arm.tar/ros-qtt-arm.tar \
+            --title "ROS-qtt $TAG — образы контейнеров для RouterOS (amd64 + arm64 + arm)" \
             --notes "$NOTES" \
             || gh release upload -R "$GITHUB_REPOSITORY" "$TAG" \
               ros-qtt-amd64.tar/ros-qtt-amd64.tar \
               ros-qtt-arm64.tar/ros-qtt-arm64.tar \
+              ros-qtt-arm.tar/ros-qtt-arm.tar \
               --clobber
