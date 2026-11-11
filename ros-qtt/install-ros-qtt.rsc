@@ -10,7 +10,8 @@
 # (см. пример).
 #
 # ПРЕДТРЕБОВАНИЯ (один раз, руками):
-#   1. RouterOS >= 7.5 и пакет `container` (Packages → .npk вашей архитектуры).
+#   1. RouterOS >= 7.5 и пакет `container` (Packages → .npk вашей архитектуры:
+#      arm — RB4011 и другие 32-бит ARMv7, arm64, x86; mipsbe/mmips/smips — нет).
 #   2. ФИЗИЧЕСКИ на устройстве: /system/device-mode/update container=yes
 #      + подтверждение (кнопка reset / холодная перезагрузка на x86). Без этого
 #      контейнеры не стартуют (ограничение device-mode, дока MikroTik).

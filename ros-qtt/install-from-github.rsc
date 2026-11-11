@@ -15,9 +15,9 @@
 #   флешка не нужна) — тогда env-переменная не будет использована.
 #
 # ТРЕБОВАНИЯ (развернуто — см. README):
-#   0. АРХИТЕКТУРА: пакет container MikroTik выпускает только для arm/arm64/x86 —
-#      mipsbe/mmips/smips НЕ поддерживаются (проверка arch в скрипте есть:
-#      на неподдерживаемом железе просто ошибка в /log, ничего не ломается).
+#   0. АРХИТЕКТУРА: пакет container MikroTik выпускает для arm (32-бит, RB4011
+#      и др.), arm64 и x86 — mipsbe/mmips/smips НЕ поддерживаются (проверка
+#      arch в скрипте есть: на неподдерживаемом железе просто ошибка в /log).
 #   1. RouterOS >= 7.5, пакет `container` (Packages → .npk вашей архитектуры).
 #   2. Физически: /system/device-mode/update container=yes + подтверждение.
 #
@@ -84,11 +84,19 @@
 
 # ── 1. Архитектура роутера → имя образа с GitHub ─────────────────────────────
 :local cpu [:tolower [/system/resource/get cpu]]
+:local archName [:tolower [/system/resource/get architecture-name]]
 :local imgArch ""
-:if ([:typeof [:find $cpu "arm64"]] != "nil") do={ :set imgArch "arm64" }
-:if ([:typeof [:find $cpu "x86"]] != "nil") do={ :set imgArch "amd64" }
+:if ([:typeof [:find $archName "arm64"]] != "nil") do={ :set imgArch "arm64" }
+:if ([:typeof [:find $archName "x86"]] != "nil") do={ :set imgArch "amd64" }
+:if ([:len $imgArch] = 0 and [:typeof [:find $archName "arm"]] != "nil") do={ :set imgArch "arm" }
+# запасной путь по строке cpu (некоторые билды показывают arch только там):
 :if ([:len $imgArch] = 0) do={
-    :log error ("ROS-qtt: не знаю эту архитектуру (cpu=\"" . $cpu . "\") — только amd64 и arm64; спросите автора порта")
+    :if ([:typeof [:find $cpu "arm64"]] != "nil") do={ :set imgArch "arm64" }
+    :if ([:typeof [:find $cpu "x86"]] != "nil") do={ :set imgArch "amd64" }
+    :if ([:len $imgArch] = 0 and [:typeof [:find $cpu "arm"]] != "nil") do={ :set imgArch "arm" }
+}
+:if ([:len $imgArch] = 0) do={
+    :log error ("ROS-qtt: не знаю эту архитектуру (arch=\"" . $archName . "\", cpu=\"" . $cpu . "\") — только amd64, arm64 и arm; mipsbe/mmips/smips не поддерживаются")
     :error "unsupported arch"
 }
 :local imgUrl ("https://github.com/qwe203HtB/ROS-qtt/releases/latest/download/ros-qtt-" . $imgArch . ".tar")
